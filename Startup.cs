@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -25,7 +26,11 @@ namespace ContosoTeamStats
         {
             services.AddControllersWithViews();
             services.AddSingleton(async x => await RedisConnection.InitializeAsync(connectionString: Configuration["CacheConnection"].ToString()));
-        }
+            var connection = String.Empty;
+            connection = Configuration.GetConnectionString("AZURE_SQL_CONNECTIONSTRING");
+            services.AddDbContext<PersonDbContext>(options =>
+                options.UseSqlServer(connection));            
+            }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -46,7 +51,20 @@ namespace ContosoTeamStats
             app.UseRouting();
 
             app.UseAuthorization();
+            app.MapGet("/Person", (PersonDbContext context) =>
+            {
+                return context.Person.ToList();
+            })
+            .WithName("GetPersons")
+            .WithOpenApi();
 
+            app.MapPost("/Person", (Person person, PersonDbContext context) =>
+            {
+                context.Add(person);
+                context.SaveChanges();
+            })
+            .WithName("CreatePerson")
+            .WithOpenApi();
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllerRoute(
